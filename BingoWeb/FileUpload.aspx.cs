@@ -6,7 +6,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Mail;
 using System.Text;
+using System.Threading;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using CsvHelper;
@@ -50,9 +52,9 @@ namespace BingoWeb
             gvOutput.DataBind();
             foreach (GridViewRow row in gvOutput.Rows)
             {
-                string prize = row.Cells[6].Text; 
+                string prize = row.Cells[6].Text;
 
-                
+
                 if (prize.Equals("First Prize", StringComparison.OrdinalIgnoreCase))
                 {
                     row.Style["background-color"] = "yellow"; // Set the background color to yellow
@@ -72,6 +74,7 @@ namespace BingoWeb
 
         protected void btnSelectRandom_Click(object sender, EventArgs e)
         {
+            // Your existing code for checking the count input
             if (int.TryParse(txtCount.Text, out int count))
             {
                 Random random = new Random();
@@ -96,6 +99,9 @@ namespace BingoWeb
                     if (selectedTransactions.Count < 2)
                     {
                         prize = "First Prize";
+                        // Add code here to show overlay message
+                        Page.ClientScript.RegisterStartupScript(this.GetType(), "ShowWinnerMessage",
+                            "showWinnerMessage();", true);
                     }
                     else if (selectedTransactions.Count < 4)
                     {
@@ -121,15 +127,16 @@ namespace BingoWeb
                 Session["SelectedTransactionsWithResult"] = selectedTransactions;
                 // Refresh both GridViews
                 BindGridView();
-
-                // Set CSS class for "First Prize" rows in GridView
-                
             }
             else
             {
                 lblError.Text = "Please enter a valid count.";
             }
         }
+
+
+
+
 
 
 
@@ -155,7 +162,7 @@ namespace BingoWeb
             Session["SelectedTransactionsWithResult"] = new List<Transaction>();
             // Clear error message
             lblError.Text = "";
-
+            lblInfo.Text = "";
             // Clear record count label
             lblRecordCount.Text = "Uploaded Records: 0";
 
@@ -183,7 +190,7 @@ namespace BingoWeb
                     {
                         csv.Configuration.HeaderValidated = null; //
                         csv.Configuration.MissingFieldFound = null; //
-                      
+
                         // Read records
                         var records = csv.GetRecords<Transaction>().ToList();
 
@@ -223,18 +230,20 @@ namespace BingoWeb
         public void btnPDF_Click(object sender, EventArgs e)
         {
             var outputData = (List<Transaction>)Session["SelectedTransactionsWithResult"];
-            if (outputData.Count > 0)
+            if (outputData?.Count > 0)
             {
                 if (ConfigurationManager.AppSettings.AllKeys.Contains("PDFDownloadPath"))
                 {
 
-                    var output =ConvertListToDataTable(outputData);
-                    ExportToPdf(output);
-                    lblError.Text = "Exported to " + fullPath;
+                    var output = ConvertListToDataTable(outputData);
+                    var op = ExportToPdf(output, false);
+
                 }
                 else
                 {
-                    lblError.Text = "PDF Download path not configured. Please update path in appconfig";
+                    var msg = "PDF Download path not configured. Please update path in appconfig";
+                    string script = $"alert('{msg}');";
+                    ScriptManager.RegisterStartupScript(this, this.GetType(), "alert", script, true);
                 }
 
             }
@@ -271,7 +280,7 @@ namespace BingoWeb
             return dt;
         }
 
-        public void ExportToPdf(DataTable myDataTable)
+        public string ExportToPdf(DataTable myDataTable, bool isMail)
         {
             DataTable dt = myDataTable;
             Document pdfDoc = new Document();
@@ -293,7 +302,7 @@ namespace BingoWeb
 
                     PdfPCell PdfPCell = new PdfPCell();
                     //string imageURL = @".\Sample File\DEX_2.png";
-                   
+
                     string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
                     string imageURL = Path.Combine(baseDirectory, "Sample File", "DEX_2.png");
                     BaseFont bf = BaseFont.CreateFont("c:\\windows\\fonts\\arial.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
@@ -330,9 +339,13 @@ namespace BingoWeb
                 }
                 pdfDoc.AddCreationDate();
                 pdfDoc.Close();
-
-
-
+                if (!isMail)
+                {
+                    var msg = "Exported to " + fullPath.Replace("\\", "\\\\"); ;
+                    string script = $"alert('{msg}');";
+                    ScriptManager.RegisterStartupScript(this, this.GetType(), "alert", script, true);
+                }
+                return fullPath;
 
 
 
@@ -340,23 +353,26 @@ namespace BingoWeb
             catch (DocumentException de)
             {
                 lblError.Text = "Exception :" + de.Message.ToString();
+                return "";
             }
 
             catch (IOException ioEx)
             {
                 lblError.Text = "Exception :" + ioEx.Message.ToString();
+                return "";
             }
 
             catch (Exception ex)
             {
                 lblError.Text = "Exception :" + ex.Message.ToString();
+                return "";
             }
         }
 
         public void btnExcel_Click(object sender, EventArgs e)
         {
             var outputData = (List<Transaction>)Session["SelectedTransactionsWithResult"];
-            if (outputData.Count > 0)
+            if (outputData?.Count > 0)
             {
                 if (ConfigurationManager.AppSettings.AllKeys.Contains("ExcelDownloadPath"))
                 {
@@ -370,22 +386,22 @@ namespace BingoWeb
                     var msg = "Exported to " + strExcelPath.Replace("\\", "\\\\"); ;
                     string script = $"alert('{msg}');";
                     ScriptManager.RegisterStartupScript(this, this.GetType(), "alert", script, true);
-                    
+
                 }
                 else
                 {
                     var msg = "Excel Download path not configured. Please update path in config";
                     string script = $"alert('{msg}');";
                     ScriptManager.RegisterStartupScript(this, this.GetType(), "alert", script, true);
-                   
+
                 }
 
 
             }
             else
                 lblError.Text = "No data available";
-              
-           
+
+
 
 
         }
@@ -426,6 +442,106 @@ namespace BingoWeb
 
 
 
+        }
+
+        public void btnEmail_Click(object sender, EventArgs e)
+        {
+            SendEmailWithAttachment();
+        }
+        protected void SendEmailWithAttachment()
+        {
+            // Replace these values with your SMTP server and credentials
+            string smtpServer = "smtp.gmail.com";
+            int smtpPort = 587; // Port for SMTP server (e.g., 587 for Gmail)
+            string smtpUsername = "";
+            string smtpPassword = "";
+
+            string fromEmail = "";
+            string toEmail = "";
+            string subject = "";
+            string body = "";
+            string pdfMailPath = "";
+            // Create a MailMessage object
+            MailMessage mail = new MailMessage(fromEmail, toEmail, subject, body);
+
+            // Generate the PDF file
+            var outputData = (List<Transaction>)Session["SelectedTransactionsWithResult"];
+            if (outputData?.Count > 0)
+            {
+                if (ConfigurationManager.AppSettings.AllKeys.Contains("PDFDownloadPath"))
+                {
+                    var output = ConvertListToDataTable(outputData);
+                    pdfMailPath = ExportToPdf(output, true);
+                    if (!string.IsNullOrEmpty(pdfMailPath))
+                    {
+                        // Create an attachment
+                        Attachment attachment = new Attachment(pdfMailPath);
+                        mail.Attachments.Add(attachment);
+                    }
+                    else
+                    {
+                        lblError.Text = "Error generating PDF.";
+                        return;
+                    }
+                }
+                else
+                {
+                    lblError.Text = "PDF Download path not configured. Please update path in appconfig";
+                    return;
+                }
+            }
+            else
+            {
+                lblError.Text = "No data available";
+                return;
+            }
+
+            // Create a SmtpClient to send the email
+            SmtpClient smtpClient = new SmtpClient(smtpServer, smtpPort);
+            smtpClient.Credentials = new System.Net.NetworkCredential(smtpUsername, smtpPassword);
+
+            // Enable SSL if your SMTP server requires it
+            smtpClient.EnableSsl = true;
+
+            try
+            {
+                // Send the email
+                smtpClient.Send(mail);
+                lblInfo.Text = "Email sent successfully!";
+            }
+            catch (Exception ex)
+            {
+                lblError.Text = "Error sending email: " + ex.Message;
+                // Assuming you have a label control named lblErrorMessage in your ASP.NET markup
+                // Assuming you have a label control named lblErrorMessage in your ASP.NET markup
+                lblInfo.Text = @"
+                    <span style='color: red; font-weight: bold;'>Provide Valid Credentials:</span> Make sure you are providing valid username and password credentials to authenticate with the SMTP server. The smtpUsername and smtpPassword variables in your code should contain the correct login credentials for your email account.
+
+                    <span style='color: red; font-weight: bold;'>Check for 2-Step Verification:</span> If you are using Gmail or a similar service, and you have two-step verification enabled for your account, you may need to generate an 'App Password' specifically for your application. Regular email account passwords may not work in this case.
+
+                    <span style='color: red; font-weight: bold;'>Network and Firewall:</span> Ensure that your network connection is stable and not blocked by a firewall or security software. Sometimes, network issues or firewall rules can prevent your application from connecting to the SMTP server.";
+
+
+            }
+            finally
+            {
+                // Clean up resources
+                mail.Dispose();
+                smtpClient.Dispose();
+                if (File.Exists(pdfMailPath))
+                {
+                    try
+                    {
+                        // Delete the PDF file
+                        File.Delete(pdfMailPath);
+                        
+                    }
+                    catch (Exception ex)
+                    {
+                        lblError.Text = "Error deleting PDF file: " + ex.Message;
+                    }
+                }
+            }
         }
 
 
