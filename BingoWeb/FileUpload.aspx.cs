@@ -9,6 +9,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Text;
 using System.Threading;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using CsvHelper;
@@ -24,23 +25,97 @@ namespace BingoWeb
         private string path;
         private string fullPath;
         private string strExcelPath;
+        bool isAutoUpload = Convert.ToBoolean(ConfigurationManager.AppSettings["Autoupload"]?.ToString());
+        bool isCorrespondentSpecfic = Convert.ToBoolean(ConfigurationManager.AppSettings["CorrespondentSpecfic"]?.ToString());
+        int ifirstprice = Convert.ToInt32(ConfigurationManager.AppSettings["FirstPrizecount"].ToString());
+        int isecondprice = Convert.ToInt32(ConfigurationManager.AppSettings["SecondPrizeCount"]?.ToString());
+        string strFirstprizetext = ConfigurationManager.AppSettings["FirstPrizetxt"].ToString();
+        string strSecondprizetext = ConfigurationManager.AppSettings["SecondPrizetxt"]?.ToString();
+        string strThirdprizetext = ConfigurationManager.AppSettings["ThirdPrizetxt"]?.ToString();
+        string strColourFirst = ConfigurationManager.AppSettings["ColourFirst"]?.ToString();
+        string strColourSecond = ConfigurationManager.AppSettings["ColourSecond"]?.ToString();
+        string csvFilePath = ConfigurationManager.AppSettings["CsvUploadPath"]?.ToString();
         protected void Page_Load(object sender, EventArgs e)
         {
             if (!IsPostBack)
             {
-                transactions = new List<Transaction>();
-                Session["Transactions"] = transactions;
-
-                // Initialize the list of selected transactions
-                Session["SelectedTransactions"] = new List<Transaction>();
-                BindGridView();
+                LoadData();
             }
             else
             {
                 transactions = (List<Transaction>)Session["Transactions"];
             }
+        }
 
+        private void LoadData()
+        {
+            transactions = new List<Transaction>();
+            Session["Transactions"] = transactions;
 
+            // Initialize the list of selected transactions
+            Session["SelectedTransactions"] = new List<Transaction>();
+
+            if (isAutoUpload)
+            {
+
+                AutoUpload();
+            }
+            else
+            {
+                fileUpload.Visible = true;
+                btnUpload.Visible = true;
+                BindGridView();
+            }
+        }
+
+        private void AutoUpload()
+        {
+            
+            // Check if a specific CSV file path is configured
+            if (!string.IsNullOrEmpty(csvFilePath) && File.Exists(csvFilePath))
+            {
+                try
+                {
+                    using (var reader = new StreamReader(csvFilePath))
+                    using (var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)))
+                    {
+                        csv.Configuration.HeaderValidated = null;
+                        csv.Configuration.MissingFieldFound = null;
+
+                        // Read records
+                        var records = csv.GetRecords<Transaction>().ToList();
+
+                        // Handle null or empty values for the SpecialPrize property manually
+                        foreach (var record in records)
+                        {
+                            //if (string.IsNullOrEmpty(record.RESULT))
+                            //{
+                            //    // Handle null or empty value here, e.g., set a default value
+                            //    record.RESULT = "";
+                            //}
+                        }
+
+                        transactions = records;
+
+                        Session["Transactions"] = transactions;
+
+                        // Clear the selection when a new file is uploaded
+                        Session["SelectedTransactions"] = new List<Transaction>();
+                        lblRecordCount.Visible = true;
+                        lblRecordCount.Text = $"Uploaded Records: {transactions.Count}";
+
+                        BindGridView();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lblError.Text = $"Error: {ex.Message}";
+                }
+            }
+            else
+            {
+                lblError.Text = "CSV file path " +csvFilePath + "  is not configured or the file does not exist.";
+            }
         }
 
 
@@ -55,14 +130,14 @@ namespace BingoWeb
                 string prize = row.Cells[6].Text;
 
 
-                if (prize.Equals("First Prize", StringComparison.OrdinalIgnoreCase))
+                if (HttpUtility.HtmlDecode(prize?.Trim()).Equals(HttpUtility.HtmlDecode(strFirstprizetext), StringComparison.OrdinalIgnoreCase))
                 {
-                    row.Style["background-color"] = "yellow"; // Set the background color to yellow
+                    row.Style["background-color"] = strColourFirst; // Set the background color to yellow
                     row.Style["font-weight"] = "bold"; // Set the font weight to bold
                 }
-                if (prize.Equals("Second Prize", StringComparison.OrdinalIgnoreCase))
+                if(string.Equals(HttpUtility.HtmlDecode(prize?.Trim()), HttpUtility.HtmlDecode(strSecondprizetext?.Trim()), StringComparison.OrdinalIgnoreCase))
                 {
-                    row.Style["background-color"] = "#9ACD32"; // Set the background color to yellow
+                    row.Style["background-color"] = strColourSecond; // Set the background color to yellow
                     row.Style["font-weight"] = "bold"; // Set the font weight to bold
                 }
 
@@ -80,14 +155,30 @@ namespace BingoWeb
                 Random random = new Random();
                 var selectedTransactions = (List<Transaction>)Session["SelectedTransactions"];
 
+                
+                    string desiredCorrespondentsSetting = ConfigurationManager.AppSettings["DesiredCorrespondents"];
+                    List<string> desiredCorrespondents = desiredCorrespondentsSetting.Split(',').ToList();
+
+
+                    // Filter transactions by the desired "CORRESPONDENT" values
+                    var transactionsToSelectFrom = transactions.Where(t => desiredCorrespondents.Contains(t.CORRESPONDENT)).ToList();
+                
                 while (count > 0)
                 {
-                    var remainingTransactions = transactions
+                    
+                    var remainingTransactions = transactionsToSelectFrom
                         .Except(selectedTransactions)
                         .ToList();
 
+                    if (!isCorrespondentSpecfic)
+                    {
+                        var transactions = GetTransactions(selectedTransactions);
+                        remainingTransactions = transactions;
+                    }
+
                     if (remainingTransactions.Count == 0)
                     {
+                        lblError.Text = "Correspondent not Found or Incorrect configuration.";
                         break; // No more records to select
                     }
 
@@ -96,20 +187,20 @@ namespace BingoWeb
 
                     // Determine the prize for the selected transaction
                     string prize;
-                    if (selectedTransactions.Count < 2)
+                    if (selectedTransactions.Count < ifirstprice)
                     {
-                        prize = "First Prize";
+                        prize = strFirstprizetext;
                         // Add code here to show overlay message
                         Page.ClientScript.RegisterStartupScript(this.GetType(), "ShowWinnerMessage",
                             "showWinnerMessage();", true);
                     }
-                    else if (selectedTransactions.Count < 4)
+                    else if (selectedTransactions.Count < isecondprice)
                     {
-                        prize = "Second Prize";
+                        prize = strSecondprizetext;
                     }
                     else
                     {
-                        prize = "Free Voucher"; // No specific prize for the rest
+                        prize = strThirdprizetext; // No specific prize for the rest
                     }
 
                     // Update the RESULT column with the prize
@@ -133,6 +224,17 @@ namespace BingoWeb
                 lblError.Text = "Please enter a valid count.";
             }
         }
+
+        private List<Transaction>GetTransactions(List<Transaction> selectedTransactions)
+        {
+            List <Transaction> remainingTransactions = transactions
+              .Except(selectedTransactions)
+              .ToList();
+            return remainingTransactions;
+        }
+
+
+
 
 
 
@@ -174,6 +276,10 @@ namespace BingoWeb
 
             // Optionally, clear the count textbox
             txtCount.Text = "";
+            if (isAutoUpload)
+            {
+                LoadData();
+            }
         }
 
 
@@ -534,7 +640,7 @@ namespace BingoWeb
                     {
                         // Delete the PDF file
                         File.Delete(pdfMailPath);
-                        
+
                     }
                     catch (Exception ex)
                     {

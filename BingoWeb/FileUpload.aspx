@@ -33,7 +33,7 @@
 <body>
     <form id="form1" runat="server">
         <div class="container">
-            <h1>Bingo!!</h1>
+            <h1>Bingo</h1>
 
 
 
@@ -41,8 +41,8 @@
 
             <div class="btn-container">
                 <div class="btn-container">
-                    <asp:FileUpload ID="fileUpload" runat="server" />
-                    <asp:Button ID="btnUpload" runat="server" Text="Upload" OnClick="btnUpload_Click" CssClass="btn primary" /><br />
+                    <asp:FileUpload ID="fileUpload" runat="server" Visible="false" />
+                    <asp:Button ID="btnUpload" runat="server" Text="Upload" OnClick="btnUpload_Click" CssClass="btn primary" Visible="false" /><br />
                     <p>
                         <asp:Label ID="lblError" runat="server" ForeColor="Red" />
                     </p>
@@ -63,11 +63,20 @@
                         <asp:BoundField DataField="CUSTOMERNAME" HeaderText="CUSTOMERNAME" />
                         <asp:BoundField DataField="IDNO" HeaderText="IDNO" />
                         <asp:BoundField DataField="AMOUNT" HeaderText="AMOUNT" />
-                        <asp:BoundField DataField="CORRESPONDENT" HeaderText="CORRESPONDENT" />
+                        <asp:BoundField DataField="CORRESPONDENT" HeaderText="CORRESPONDENT" Visible="true" />
                         <asp:BoundField DataField="RESULT" HeaderText="RESULT" Visible="false" />
                     </Columns>
                 </asp:GridView>
-                <asp:GridView ID="gvOutput" runat="server" OnPageIndexChanging="gvOutput_PageIndexChanging" AllowPaging="true" PageSize="6" CssClass="grid-view">
+                <asp:GridView ID="gvOutput" runat="server" OnPageIndexChanging="gvOutput_PageIndexChanging" AutoGenerateColumns="false" AllowPaging="true" PageSize="10" CssClass="grid-view">
+                    <Columns>
+                        <asp:BoundField DataField="TXNDATE" HeaderText="TXNDATE" />
+                        <asp:BoundField DataField="REFNO" HeaderText="REFNO" />
+                        <asp:BoundField DataField="CUSTOMERNAME" HeaderText="CUSTOMERNAME" />
+                        <asp:BoundField DataField="IDNO" HeaderText="IDNO" />
+                        <asp:BoundField DataField="AMOUNT" HeaderText="AMOUNT" />
+                        <asp:BoundField DataField="CORRESPONDENT"   HeaderText="CORRESPONDENT" Visible="true" />
+                        <asp:BoundField DataField="RESULT" HeaderText="RESULT"  />
+                    </Columns>
                 </asp:GridView>
             </div>
 
@@ -75,7 +84,7 @@
                 <asp:Button ID="btnReset" runat="server" Text="Reset" OnClick="btnReset_Click" CssClass="btn secondary" />
                 <asp:Button ID="btnPDF" runat="server" Text="Export to PDF" OnClick="btnPDF_Click" CssClass="btn secondary" />
                 <asp:Button ID="btnExcel" runat="server" Text="Export to Excel" OnClick="btnExcel_Click" CssClass="btn secondary" />
-                <asp:Button ID="btnEmail" runat="server" Text="Send PDF" Visible="false" OnClick="btnEmail_Click" CssClass="btn secondary" />
+                <asp:Button ID="btnEmail" runat="server" Text="Email PDF" Visible="false" OnClick="btnEmail_Click" CssClass="btn secondary" />
             </div>
         </div>
         <div id="winnerOverlay" class="overlay" style="display: none;">
