@@ -8,13 +8,20 @@ body {
 }
 
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
     padding: 20px;
     background-color: #fff;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    border-radius: 10px;
     text-align: center;
+}
+.custom-class {
+    background-color: red;
+    border: 1px solid #d1181f;
+    /* padding: 10px; */
+    display: flex; /* Use flexbox to control the layout */
+    justify-content: space-between; /* Push the h1 and img to opposite ends */
+}
+
+.imgBingo {
+    width: 10%; /* Reduce the width to 50% of its parent container */
 }
 
 h1 {
@@ -113,3 +120,4 @@ input[type="text"] {
         transform: translateY(0);
     }
 }
+

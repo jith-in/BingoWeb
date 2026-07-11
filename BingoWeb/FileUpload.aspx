@@ -32,15 +32,18 @@
 </head>
 <body>
     <form id="form1" runat="server">
-        <div class="container">
-            <h1>Bingo</h1>
+        <div class="custom-class">
+            <img src="https://alzamanexchange.com/assets/images/al-zaman-Logo.png" alt="Logo" />
+             <img src="Styles/Bingo.png" class="imgBingo" />
+            
 
+            </div>
 
-
-            <hr />
-
+           
+            <div class="container">
             <div class="btn-container">
                 <div class="btn-container">
+                    
                     <asp:FileUpload ID="fileUpload" runat="server" Visible="false" />
                     <asp:Button ID="btnUpload" runat="server" Text="Upload" OnClick="btnUpload_Click" CssClass="btn primary" Visible="false" /><br />
                     <p>
